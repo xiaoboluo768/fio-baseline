@@ -2,10 +2,10 @@
 
 #========================Setting========================#
 # example disks=(nvme0n1 nvme1n1 nvme2n1 nvme3n1)
-disks=(nvme0n1 nvme1n1)
+disks=(nvme0n1)
 
 # set compression
-comp_ratio=55
+comp_ratio=1
 
 # set runtime
 runtime=600
@@ -15,7 +15,7 @@ ramp_time=60
 
 # set cpus_allowed, the list must match with disks
 # example disks=("1-15" "16-31")
-cpus_allowed_list=("0-5" "6-11")
+cpus_allowed_list=()
 #======================Setting End======================#
 
 

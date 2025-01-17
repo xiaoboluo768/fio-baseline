@@ -1,176 +1,85 @@
-#/bin/bash -x
+#!/bin/bash 
 
-function collect_sfdv_info() {
-    drv_name=$1
-    
-    echo "`sfx-status /dev/${drv_name}`"
-    echo ""
-    echo "`sfx-nvme sfx smart-log-add /dev/${drv_name}`"
-    echo ""
-    echo "`grep . /sys/block/${drv_name}/queue/*`"
+#=======================================================#
+# !!!Do Not Modify Codes Below!!!
+#=======================================================#
+
+function collect_sys_info(){
+    sys_info_log=$1
+
+    nvme list >> ${sys_info_log}
+    echo "" >> ${sys_info_log}
+    lsblk >> ${sys_info_log}
+    echo "" >> ${sys_info_log}
+    df -lh >> ${sys_info_log}
+    echo "" >> ${sys_info_log}
+    free -h >> ${sys_info_log}
+    echo "" >> ${sys_info_log}
+    lscpu >> ${sys_info_log}
+    echo "" >> ${sys_info_log}
+    dmidecode >>  ${sys_info_log}
+    echo "" >> ${sys_info_log}
 }
 
-function collect_nvme_info() {
-    drv_name=$1
-    
-    echo "`nvme smart-log /dev/${drv_name}`"
-    echo ""
-    echo "`grep . /sys/block/${drv_name}/queue/*`"
+function collect_drv_info()
+{
+    disk=$1
+    drv_log=${drv_info}/${disk}.log
+
+    sfx-status /dev/$disk > $drv_log
+    echo "" >> $drv_log
+    nvme smart-log /dev/$disk >> $drv_log
+    echo "" >> $drv_log
+    nvme id-ctrl /dev/$disk >> $drv_log
+    echo "" >> $drv_log
+
+    ctlid=$(echo $disk | grep -oP 'e\K\d+(?=n)')
+    address=$(cat /sys/class/nvme/nvme$ctlid/address)
+    lspci -s $address -vvv >> $drv_log
+    echo "" >> $drv_log
 }
 
-function collect_drv_info() {
-    drv_name=$1
+function collect_fio_result()
+{
+    result_file=$1
+    output_file=$2
+    disk=$3
 
-    if [[ `ls ${drv_name} 2>/dev/null` ]] || [[ `ls /dev/${drv_name} 2>/dev/null` ]]
-    then
-        if [[ `echo ${drv_name} | grep /dev/` ]]
-        then
-            drv_name=${drv_name#/dev/}
-        fi
-
-        if [[ "${drv_name::4}" == "sfdv" ]] || nvme list |grep -i ${drv_name} |grep -iE 'ScaleFlux|CSD' &> /dev/null;
-        then
-            collect_sfdv_info ${drv_name}
-
-        elif [[ "${drv_name::4}" == "nvme" ]];
-        then
-            collect_nvme_info ${drv_name}
-        fi
-    fi
-}
-
-function collect_sys_info() {
-    echo -e "[memory]"
-    echo "`free -m`"
-    echo -e "\n[lsblk]"
-    echo "`lsblk`"
-    echo -e "\n[df]"
-    echo "`df -h`"
-    echo -e "\n[filesystem]"
-    echo "`mount`"
-    echo -e "\n[cpu]"
-    echo "`lscpu`"
-    echo "`grep MHz /proc/cpuinfo`"
-    echo -e "\n[sfdv_param]"
-    echo "`grep . /sys/module/sfxv_bd_dev/parameters/* 2>/dev/null`"
-    echo -e "\n[lspci]"
-    echo "$(for dev in `lspci | grep -i 'Non-Volatile' | cut -d' ' -f1`; do lspci -s $dev -vvv; done)"
-    echo -e "\n[dmidecode]"
-    echo "`dmidecode`"
-}
-
-function iostat_to_csv() {
-    data_dir=$1
-    if [[ ! -d ${data_dir} ]]; then return 1; fi
-
-    iostat_ver=`iostat -V | grep -i version | cut -d" " -f3 | cut -d\. -f1`
-    if [[ ${iostat_ver} -lt 11 ]]
-    then
-        iofields="4-9,14"
-        cpufields="1-2,4"
+    pattern=$(sed -n '1p' $result_file | grep -oP 'rw=\K[^,)]+')
+    bs=$(sed -n '1p' $result_file | grep -oP '(?<=\(T\) ).*?(?=-)')
+    qd=$(sed -n '1p' $result_file | grep -oP '(?<=iodepth=).*')
+    numjobs=$(cat $result_file | grep -oP 'Starting \K\d+(?= process)')
+    if [[ "$pattern" != "randrw" && "$pattern" != "rw" ]]; then
+        # read/write/randwrite/randread
+        iops_line_text=$(cat $result_file | grep -E 'write:|read:')
+        iops_line_num=$(cat $result_file | grep -En 'write:|read:' | cut -d: -f1)
+        lat_line_num=$((iops_line_num + 3))
+        lat_line_text=$(sed -n "${lat_line_num}p" $result_file)        
+        iops=$(echo $iops_line_text | grep -oP 'IOPS=\K[\d\.]+(?=k)')
+        bw=$(echo $iops_line_text | grep -oP '\(\K[0-9.]+(?=MB/s)')
+        unit=$(echo $lat_line_text | grep -oP 'lat \(\K[^)]+')
+        lat=$(echo $lat_line_text | grep -oP 'avg=\K[\d\.]+(?=,)')
+        echo "$disk,$pattern,$bs,$qd,$numjobs,$iops,$bw,$lat,$unit" >> $output_file
     else
-        iofields="2-5,12-14,16"
-        cpufields="1-2,4"
-    fi
-
-    for fiostat in `ls ${data_dir}/*.iostat`
-    do
-        barename=${fiostat/*\/}; barename=${barename/.iostat}
-        ts=${data_dir}/${barename}.ts
-        io_out=${data_dir}/${barename}.io
-        cpu_out=${data_dir}/${barename}.cpu
-
-        echo "timestamp" > ${ts}
-        grep -E "[0-9]+:[0-9]+:" ${fiostat} >> ${ts}
-
-        grep -m1 Device ${fiostat} | sed -r "s/\s+/,/g" | cut -d, -f ${iofields} > ${io_out}
-        grep -e sfd -e nvme ${fiostat} | sed -r "s/\s+/,/g"  | cut -d, -f ${iofields} >> ${io_out}
-
-        grep -m1 avg-cpu ${fiostat} | sed -r "s/\s+/,/g" | cut -d, -f ${cpufields} > ${cpu_out}
-        grep -A1 avg-cpu ${fiostat} | grep -v \- | sed -r "s/\s+/,/g" | cut -d, -f ${cpufields} >> ${cpu_out}
+        # rw/randrw
+        iops_line_text=$(cat $result_file | grep -E 'read:')
+        iops_line_num=$(cat $result_file | grep -En 'read:' | cut -d: -f1)
+        lat_line_num=$((iops_line_num + 3))
+        lat_line_text=$(sed -n "${lat_line_num}p" $result_file)
+        iops=$(echo $iops_line_text | grep -oP 'IOPS=\K[\d\.]+(?=k)')
+        bw=$(echo $iops_line_text | grep -oP '\(\K[0-9.]+(?=MB/s)')
+        unit=$(echo $lat_line_text | grep -oP 'lat \(\K[^)]+')
+        lat=$(echo $lat_line_text | grep -oP 'avg=\K[\d\.]+(?=,)')
+        echo "$disk,${pattern}_read,$bs,$qd,$numjobs,$iops,$bw,$lat,$unit" >> $output_file
         
-        paste -d, ${ts} ${io_out} ${cpu_out} > ${data_dir}/${barename}.csv
-        rm -f ${ts} ${io_out} ${cpu_out}
-    done
-}
-
-function fio_to_csv() {
-    data_dir=$1
-    disk=$2
-    if [[ ! -d ${data_dir} ]]; then return 1; fi
-
-    header=0
-    for f in `ls -tr ${data_dir}/${disk}*.fio`
-    do
-        disk_name=${f/*\/}; disk_name=${disk_name/_*}
-        io_pattern=${data_dir}/${disk_name}_io_pattern.csv
-        bw_iops_csv=${data_dir}/${disk_name}_bw_iops.csv
-        lat_csv=${data_dir}/${disk_name}_lat.csv
-        report=${data_dir}/${disk_name}_summary.csv
-        if [[ ${header} -eq 0 ]]
-        then
-            header=1
-            echo "pattern" > ${io_pattern}
-            echo "I/O,KIOPS,BW (MiB/s)" > ${bw_iops_csv}
-            echo "lat unit,min,max,avg,stdev" > ${lat_csv}
-        fi
-        grep -e pid= ${f} | sed -r -e "s/(randrw.*):.*\(.*/\1\n/g" -e "s/(.*):.*\(.*/\1/g" >> ${io_pattern}
-        #grep -e BW= ${f} | sed -r -e "s/\s*(.*):\s*IOPS=([0-9\.k]+),\s*BW=([0-9\.]+MiB).*/\1,\2,\3/g" >> ${bw_iops_csv}
-        grep -e BW= ${f} |awk -F '[ ]' '{print $3,$4,$6}' |awk -F '[():=/]' '{print $1","$3$4}' |sed 's/ //g' >> ${bw_iops_csv}
-        grep -e "\slat\s.*avg=" ${f} | sed -r -e "s/\s+(lat\s.*):\smin=\s*([0-9]+),\s+max=\s*([0-9]+),\s+avg=\s*([0-9\.]+),\sstdev=\s*([0-9\.]+).*/\1,\2,\3,\4,\5/g" >> ${lat_csv} 
-
-    done
-    paste -d, ${io_pattern} ${bw_iops_csv} ${lat_csv} > ${report}
-    rm -f ${io_pattern} ${bw_iops_csv} ${lat_csv}
-}
-
-function consolidate_summary() {
-    data_dir=$1
-    out_dir=$2
-    if [[ ! -d ${data_dir} ]]; then return 1; fi
-    if [[ ! -d ${out_dir} ]]; then out_dir=${data_dir}; fi
-
-    header_collcted=0
-    headers=${data_dir}/headers.tmp
-    suffix=_summary.csv
-    for f in `ls ${data_dir}/*${suffix} | sort -V`
-    do
-        disk_name=${f/*\/}; disk_name=${disk_name/_*}
-        result=${data_dir}/${disk_name}.result
-        if [[ ${header_collcted} -eq 0 ]]
-        then
-            header_collcted=1
-            header_txt=`cat $f | cut -d, -f1,2`
-            echo "KIOPS"          > ${headers}
-            echo "${header_txt}" >> ${headers}
-            echo ""              >> ${headers}
-            echo "BW (MiB/s)"    >> ${headers}
-            echo "${header_txt}" >> ${headers}
-        fi
-
-        echo "" > ${result}
-        echo ${disk_name} >> ${result}
-        cat $f | grep -v IOPS | cut -d, -f 3 >> ${result}
-        echo "" >> ${result}
-        echo "" >> ${result}
-        echo ${disk_name} >> ${result}
-        cat $f | grep -v BW   | cut -d, -f 4 >> ${result}
-
-        result_list="${result_list} ${result}"
-    done
-
-    paste -d, ${headers} ${result_list} > ${out_dir}/result_summary.csv
-    rm ${headers} ${result_list}
-}
-
-function collect_temperature() {
-    dev_name=$1
-
-    if [[ "${drv_name::4}" == "sfdv" ]];then
-        echo `sfx-nvme smart-log ${dev_name} | grep -e sfdv -e temperature | sed -r -e "s/.*:(sfdv[0-9]+n1).*/\1/g" -e "s/.*: ([1-9]+) C.*/\1/g"` | sed -r "s/\s+/,/g"
-    elif nvme list |grep -i ${drv_name} |grep -iE 'ScaleFlux|CSD' &> /dev/null;then
-        echo `sfx-nvme smart-log ${dev_name} | grep -e nvme -e temperature | sed -r -e "s/.*:(nvme[0-9]+n1).*/\1/g" -e "s/.*: ([1-9]+) C.*/\1/g"` | sed -r "s/\s+/,/g"
-    else
-        echo `nvme smart-log ${dev_name} | grep -e nvme -e temperature | sed -r -e "s/.*:(nvme[0-9]+n1).*/\1/g" -e "s/.*: ([1-9]+) C.*/\1/g"` | sed -r "s/\s+/,/g"
+        iops_line_text=$(cat $result_file | grep -E 'write:')
+        iops_line_num=$(cat $result_file | grep -En 'write:' | cut -d: -f1)
+        lat_line_num=$((iops_line_num + 3))
+        lat_line_text=$(sed -n "${lat_line_num}p" $result_file)
+        iops=$(echo $iops_line_text | grep -oP 'IOPS=\K[\d\.]+(?=k)')
+        bw=$(echo $iops_line_text | grep -oP '\(\K[0-9.]+(?=MB/s)')
+        unit=$(echo $lat_line_text | grep -oP 'lat \(\K[^)]+')
+        lat=$(echo $lat_line_text | grep -oP 'avg=\K[\d\.]+(?=,)')
+        echo "$disk,${pattern}_write,$bs,$qd,$numjobs,$iops,$bw,$lat,$unit" >> $output_file
     fi
 }

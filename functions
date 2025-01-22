@@ -4,6 +4,29 @@
 # !!!Do Not Modify Codes Below!!!
 #=======================================================#
 
+function collect_test_config(){
+    output_file=$1
+    disks=$2
+    comp_ratio=$3
+    runtime=$4
+    ramp_time=$5
+    cpus_allowed_list=$6
+
+    str=""
+    for element in "${disks[@]}"; do
+        str="${str}$element "
+    done
+    echo "[Config] disks=($str)" >> $output_file
+    echo "[Config] comp_ratio=$comp_ratio" >> $output_file
+    echo "[Config] runtime=$runtime" >> $output_file
+    echo "[Config] ramp_time=$ramp_time" >> $output_file
+    str=""
+    for element in "${cpus_allowed_list[@]}"; do
+        str="${str}$element "
+    done
+    echo "[Config] cpus_allowed_list=($str)" >> $output_file
+}
+
 function collect_sys_info(){
     sys_info_log=$1
 
@@ -21,10 +44,28 @@ function collect_sys_info(){
     echo "" >> ${sys_info_log}
 }
 
-function collect_drv_info()
+function collect_drv_before_info()
 {
     disk=$1
-    drv_log=${drv_info}/${disk}.log
+    drv_log=${drv_info}/${disk}_before.log
+
+    sfx-status /dev/$disk > $drv_log
+    echo "" >> $drv_log
+    nvme smart-log /dev/$disk >> $drv_log
+    echo "" >> $drv_log
+    nvme id-ctrl /dev/$disk >> $drv_log
+    echo "" >> $drv_log
+
+    ctlid=$(echo $disk | grep -oP 'e\K\d+(?=n)')
+    address=$(cat /sys/class/nvme/nvme$ctlid/address)
+    lspci -s $address -vvv >> $drv_log
+    echo "" >> $drv_log
+}
+
+function collect_drv_after_info()
+{
+    disk=$1
+    drv_log=${drv_info}/${disk}_after.log
 
     sfx-status /dev/$disk > $drv_log
     echo "" >> $drv_log

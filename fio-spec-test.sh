@@ -14,7 +14,7 @@ runtime=600
 ramp_time=60
 
 # set cpus_allowed, the list must match with disks
-# example disks=("1-15" "16-31")
+# example cpus_allowed_list=("1-15" "16-31")
 cpus_allowed_list=()
 #======================Setting End======================#
 

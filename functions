@@ -99,7 +99,7 @@ function collect_fio_result()
         iops=$(echo $iops_line_text | grep -oP 'IOPS=\K[\d\.]+(?=k)')
         bw=$(echo $iops_line_text | grep -oP '\(\K[0-9.]+(?=MB/s)')
         unit=$(echo $lat_line_text | grep -oP 'lat \(\K[^)]+')
-        lat=$(echo $lat_line_text | grep -oP 'avg=\K[\d\.]+(?=,)')
+        lat=$(echo $lat_line_text | grep -oP '(?<=avg=)\d+(?:\.\d+)?(?=,)')
         echo "$disk,$pattern,$bs,$qd,$numjobs,$iops,$bw,$lat,$unit" >> $output_file
     else
         # rw/randrw
@@ -110,7 +110,7 @@ function collect_fio_result()
         iops=$(echo $iops_line_text | grep -oP 'IOPS=\K[\d\.]+(?=k)')
         bw=$(echo $iops_line_text | grep -oP '\(\K[0-9.]+(?=MB/s)')
         unit=$(echo $lat_line_text | grep -oP 'lat \(\K[^)]+')
-        lat=$(echo $lat_line_text | grep -oP 'avg=\K[\d\.]+(?=,)')
+        lat=$(echo $lat_line_text | grep -oP '(?<=avg=)\d+(?:\.\d+)?(?=,)')
         echo "$disk,${pattern}_read,$bs,$qd,$numjobs,$iops,$bw,$lat,$unit" >> $output_file
         
         iops_line_text=$(cat $result_file | grep -E 'write:')
@@ -120,7 +120,7 @@ function collect_fio_result()
         iops=$(echo $iops_line_text | grep -oP 'IOPS=\K[\d\.]+(?=k)')
         bw=$(echo $iops_line_text | grep -oP '\(\K[0-9.]+(?=MB/s)')
         unit=$(echo $lat_line_text | grep -oP 'lat \(\K[^)]+')
-        lat=$(echo $lat_line_text | grep -oP 'avg=\K[\d\.]+(?=,)')
+        lat=$(echo $lat_line_text | grep -oP '(?<=avg=)\d+(?:\.\d+)?(?=,)')
         echo "$disk,${pattern}_write,$bs,$qd,$numjobs,$iops,$bw,$lat,$unit" >> $output_file
     fi
 }

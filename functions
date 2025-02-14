@@ -53,6 +53,8 @@ function collect_drv_before_info()
     echo "" >> $drv_log
     nvme smart-log /dev/$disk >> $drv_log
     echo "" >> $drv_log
+    sfx-nvme sfx smart-log-add /dev/$disk >> $drv_log
+    echo "" >> $drv_log
     nvme id-ctrl /dev/$disk >> $drv_log
     echo "" >> $drv_log
 
@@ -70,6 +72,8 @@ function collect_drv_after_info()
     sfx-status /dev/$disk > $drv_log
     echo "" >> $drv_log
     nvme smart-log /dev/$disk >> $drv_log
+    echo "" >> $drv_log
+    sfx-nvme sfx smart-log-add /dev/$disk >> $drv_log
     echo "" >> $drv_log
     nvme id-ctrl /dev/$disk >> $drv_log
     echo "" >> $drv_log

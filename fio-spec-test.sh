@@ -48,6 +48,15 @@ if [ ${cpus_allowed_list_length} -ne 0 ] && [ ${cpus_allowed_list_length} -ne ${
     exit 1
 fi
 
+# check device
+for ((i=0; i<$disks_length; i++)); do
+    ls /dev/${disks[$i]} > /dev/null
+    if [ $? != 0 ];then
+       echo "Check ${disks[$i]} is not exsit!"
+       exit 1
+    fi
+done
+
 my_dir="$( cd "$( dirname "$0"  )" && pwd  )"
 timestamp=`date +%Y%m%d_%H%M%S`
 output_dir=${my_dir}/${timestamp}

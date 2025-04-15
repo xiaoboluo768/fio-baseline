@@ -71,7 +71,7 @@ mkdir -p ${drv_info}
 sys_info_log=${output_dir}/sys_info.log
 test_log=${output_dir}/run_test.log
 result_csv_log=${result_dir}/result.csv
-echo "Disk,IO,BS,QD,Jobs,KIOPS,BW (MB/s),Latency,Unit" > $result_csv_log
+echo "Disk,IO,BS,QD,Jobs,KIOPS,BandWidth,Unit,Latency,Unit,99.99% Latency,Unit" > $result_csv_log
 collect_test_config $test_log $disks $comp_ratio $runtime $ramp_time $cpus_allowed_list
 
 collect_sys_info $sys_info_log

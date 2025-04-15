@@ -103,7 +103,8 @@ function collect_fio_result()
         lat_line_num=$((iops_line_num + 3))
         lat_line_text=$(sed -n "${lat_line_num}p" $result_file)        
         iops=$(echo $iops_line_text | grep -oP 'IOPS=\K[\d\.]+(?=k)')
-        bw=$(echo $iops_line_text | grep -oP '\(\K[0-9.]+(?=MB/s)')
+        bw=$(echo $iops_line_text | sed -n 's/[^(]*(\([0-9.]\+\)\([^)]*\)).*/\1/p')
+        bw_unit=$(echo $iops_line_text | sed -n 's/[^(]*([0-9.]\+\([^)]*\)).*/\1/p')
         unit=$(echo $lat_line_text | grep -oP 'lat \(\K[^)]+')
         lat=$(echo $lat_line_text | grep -oP '(?<=avg=)\d+(?:\.\d+)?(?=,)')
         qos_lat_line_num=$((iops_line_num + 8))
@@ -113,7 +114,7 @@ function collect_fio_result()
         qos_unit_line_text=$(sed -n "${qos_unit_line_num}p" $result_file) 
         qos_unit=$(echo $qos_unit_line_text | sed 's/.*(\(.*\)):.*/\1/')
 
-        echo "$disk,$pattern,$bs,$qd,$numjobs,$iops,$bw,$lat,$unit,$qos,$qos_unit" >> $output_file
+        echo "$disk,$pattern,$bs,$qd,$numjobs,$iops,$bw,$bw_unit,$lat,$unit,$qos,$qos_unit" >> $output_file
     else
         # rw/randrw
         iops_line_text=$(cat $result_file | grep -E 'read:')
@@ -121,7 +122,8 @@ function collect_fio_result()
         lat_line_num=$((iops_line_num + 3))
         lat_line_text=$(sed -n "${lat_line_num}p" $result_file)
         iops=$(echo $iops_line_text | grep -oP 'IOPS=\K[\d\.]+(?=k)')
-        bw=$(echo $iops_line_text | grep -oP '\(\K[0-9.]+(?=MB/s)')
+        bw=$(echo $iops_line_text | sed -n 's/[^(]*(\([0-9.]\+\)\([^)]*\)).*/\1/p')
+        bw_unit=$(echo $iops_line_text | sed -n 's/[^(]*([0-9.]\+\([^)]*\)).*/\1/p')
         unit=$(echo $lat_line_text | grep -oP 'lat \(\K[^)]+')
         lat=$(echo $lat_line_text | grep -oP '(?<=avg=)\d+(?:\.\d+)?(?=,)')
         qos_lat_line_num=$((iops_line_num + 8))
@@ -130,14 +132,15 @@ function collect_fio_result()
         qos_unit_line_num=$((iops_line_num + 1))
         qos_unit_line_text=$(sed -n "${qos_unit_line_num}p" $result_file) 
         qos_unit=$(echo $qos_unit_line_text | sed 's/.*(\(.*\)):.*/\1/')
-        echo "$disk,${pattern}_read,$bs,$qd,$numjobs,$iops,$bw,$lat,$unit,$qos,$qos_unit" >> $output_file
+        echo "$disk,${pattern}_read,$bs,$qd,$numjobs,$iops,$bw,$bw_unit,$lat,$unit,$qos,$qos_unit" >> $output_file
         
         iops_line_text=$(cat $result_file | grep -E 'write:')
         iops_line_num=$(cat $result_file | grep -En 'write:' | cut -d: -f1)
         lat_line_num=$((iops_line_num + 3))
         lat_line_text=$(sed -n "${lat_line_num}p" $result_file)
         iops=$(echo $iops_line_text | grep -oP 'IOPS=\K[\d\.]+(?=k)')
-        bw=$(echo $iops_line_text | grep -oP '\(\K[0-9.]+(?=MB/s)')
+        bw=$(echo $iops_line_text | sed -n 's/[^(]*(\([0-9.]\+\)\([^)]*\)).*/\1/p')
+        bw_unit=$(echo $iops_line_text | sed -n 's/[^(]*([0-9.]\+\([^)]*\)).*/\1/p')
         unit=$(echo $lat_line_text | grep -oP 'lat \(\K[^)]+')
         lat=$(echo $lat_line_text | grep -oP '(?<=avg=)\d+(?:\.\d+)?(?=,)')
         qos_lat_line_num=$((iops_line_num + 8))
@@ -146,6 +149,6 @@ function collect_fio_result()
         qos_unit_line_num=$((iops_line_num + 1))
         qos_unit_line_text=$(sed -n "${qos_unit_line_num}p" $result_file) 
         qos_unit=$(echo $qos_unit_line_text | sed 's/.*(\(.*\)):.*/\1/')
-        echo "$disk,${pattern}_write,$bs,$qd,$numjobs,$iops,$bw,$lat,$unit,$qos,$qos_unit" >> $output_file
+        echo "$disk,${pattern}_write,$bs,$qd,$numjobs,$iops,$bw,$bw_unit,$lat,$unit,$qos,$qos_unit" >> $output_file
     fi
 }

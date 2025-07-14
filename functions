@@ -5,12 +5,13 @@
 #=======================================================#
 
 function collect_test_config(){
-    output_file=$1
-    disks=$2
-    comp_ratio=$3
-    runtime=$4
-    ramp_time=$5
-    cpus_allowed_list=$6
+    local output_file=$1
+    local disks=$2
+    local comp_ratio=$3
+    local runtime=$4
+    local ramp_time=$5
+    local skip_check=$6
+    local cpus_allowed_list=$7
 
     str=""
     for element in "${disks[@]}"; do
@@ -25,6 +26,7 @@ function collect_test_config(){
         str="${str}$element "
     done
     echo "[Config] cpus_allowed_list=($str)" >> $output_file
+    echo "[Config] skip_check=$skip_check" >> $output_file
 }
 
 function collect_sys_info(){
@@ -88,9 +90,10 @@ function collect_drv_after_info()
 
 function collect_fio_result()
 {
-    result_file=$1
-    output_file=$2
-    disk=$3
+    local result_file=$1
+    local output_file=$2
+    local disk=$3
+    local is_precondition=$4
 
     pattern=$(sed -n '1p' $result_file | grep -oP 'rw=\K[^,)]+')
     bs=$(sed -n '1p' $result_file | grep -oP '(?<=\(T\) ).*?(?=-)')
@@ -114,6 +117,9 @@ function collect_fio_result()
         qos_unit_line_text=$(sed -n "${qos_unit_line_num}p" $result_file) 
         qos_unit=$(echo $qos_unit_line_text | sed 's/.*(\(.*\)):.*/\1/')
 
+        if [[ $is_precondition == "precondition" ]];then
+            pattern="${is_precondition}_${pattern}"
+        fi
         echo "$disk,$pattern,$bs,$qd,$numjobs,$iops,$bw,$bw_unit,$lat,$unit,$qos,$qos_unit" >> $output_file
     else
         # rw/randrw
@@ -151,4 +157,43 @@ function collect_fio_result()
         qos_unit=$(echo $qos_unit_line_text | sed 's/.*(\(.*\)):.*/\1/')
         echo "$disk,${pattern}_write,$bs,$qd,$numjobs,$iops,$bw,$bw_unit,$lat,$unit,$qos,$qos_unit" >> $output_file
     fi
+}
+
+function check_PCIe_status(){
+    local device="$1"
+    local controller
+    local bus_address
+    local lspci_output
+    local maxpayload_result
+    local lnksta_result
+
+    controller="${device%n*}"
+
+    local address=$(cat /sys/class/nvme/${controller}/address)
+    if [[ -z "$address" ]]; then
+        echo "Error: can not found pcie address at $address"
+        return 1
+    fi
+    
+    lspci_output=$(lspci -s "$address" -vvv 2>/dev/null)
+    if [[ -z "$lspci_output" ]]; then
+        echo "Error: can not query pcie info for ${controller} $address"
+        return 1
+    fi
+    
+    local value_error=0
+    maxpayload_result=$(grep "MaxReadReq" <<< "$lspci_output")
+    if ! grep -q "MaxPayload 512 bytes, MaxReadReq 4096 bytes" <<< "$maxpayload_result"; then
+        echo "Warning: ${device}(${address}), maxPayload is not 512 bytes, may drop performance. Current: $(grep "MaxPayload" <<< "$maxpayload_result" | sed -e 's/^[[:space:]]*//')"
+        value_error=$((value_error+1))
+    fi
+
+    lnksta_result=$(grep "LnkSta:" <<< "$lspci_output" | head -1)
+    if ! grep -q "Speed 32GT/s, Width x4" <<< "$lnksta_result"; then
+        lnksta_result=$(echo "$lnksta_result" | sed -E 's/^[[:space:]]*//; s/, [^,]*$//; s/, *$//')
+        echo "Warning: ${device}(${address}), PCIe speed or width is not expected, Speed 32GT/s and Width x4 are expected, but actually $lnksta_result"
+        value_error=$((value_error+1))
+    fi
+
+    return $value_error
 }

@@ -163,7 +163,7 @@ function Run_test(){
     iostat_pid=$!
     sudo fio --percentile_list=10:20:30:40:50:60:70:80:90:99:99.9:99.99:99.999:99.9999:99.99999:99.999999:99.9999999 --ioengine=libaio --direct=1 --norandommap \
     --randrepeat=0 --log_avg_msec=1000 --group_reporting --buffer_compress_percentage=$comp_ratio --buffer_compress_chunk=4k --filename=/dev/$disk \
-    --name=${mode}_${rw}_${bs}_${job}job_QD${qd} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${qd} --time_based --runtime=$runtime ${cpus_allowed_set} > ${result_dir}/${disk}_${mode}_${rw}_${bs}_${job}job_${qd}qd.log
+    --name=${mode}_${rw}_${bs}_${job}job_QD${qd} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${qd} --loops=$loops ${cpus_allowed_set} > ${result_dir}/${disk}_${mode}_${rw}_${bs}_${job}job_${qd}qd.log
     kill $iostat_pid > /dev/null
     echo "[`date`] [${disk}] ${mode} ${rw} ${bs} ${job}job ${qd}qd End" >> ${test_log}
     collect_fio_result ${result_dir}/${disk}_${mode}_${rw}_${bs}_${job}job_${qd}qd.log $result_csv_log $disk $mode
@@ -193,13 +193,13 @@ function Run_test(){
     collect_fio_result ${result_dir}/${disk}_${mode}_${rw}_${bs}_${job}job_${qd}qd.log $result_csv_log $disk
 
     #Random write precondition
-    mode="precondition";rw="randwrite";bs=4k;job=1;qd=128;rwmixread=0;loops=2;
+    mode="precondition";rw="randwrite";bs=4k;job=1;qd=128;rwmixread=0;loops=1;
     echo "[`date`] [${disk}] ${mode} ${rw} ${bs} ${job}job ${qd}qd Start" >> ${test_log}
     iostat -xmdct $disk 1 > ${iostat_dir}/${disk}_iostat_${mode}_${rw}_${bs}_${job}job_QD${qd}.log &
     iostat_pid=$!
     sudo fio --percentile_list=10:20:30:40:50:60:70:80:90:99:99.9:99.99:99.999:99.9999:99.99999:99.999999:99.9999999 --ioengine=libaio --direct=1 --norandommap \
     --randrepeat=0 --log_avg_msec=1000 --group_reporting --buffer_compress_percentage=$comp_ratio --buffer_compress_chunk=4k --filename=/dev/$disk \
-    --name=${mode}_${rw}_${bs}_${job}job_QD${qd} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${qd} --time_based --runtime=$runtime ${cpus_allowed_set} > ${result_dir}/${disk}_${mode}_${rw}_${bs}_${job}job_${qd}qd.log
+    --name=${mode}_${rw}_${bs}_${job}job_QD${qd} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${qd} --loops=$loops ${cpus_allowed_set} > ${result_dir}/${disk}_${mode}_${rw}_${bs}_${job}job_${qd}qd.log
     kill $iostat_pid > /dev/null
     echo "[`date`] [${disk}] ${mode} ${rw} ${bs} ${job}job ${qd}qd End" >> ${test_log}
     collect_fio_result ${result_dir}/${disk}_${mode}_${rw}_${bs}_${job}job_${qd}qd.log $result_csv_log $disk $mode

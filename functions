@@ -6,26 +6,18 @@
 
 function collect_test_config(){
     local output_file=$1
-    local disks=$2
+    local disks=($2)
     local comp_ratio=$3
     local runtime=$4
     local ramp_time=$5
     local skip_check=$6
-    local cpus_allowed_list=$7
+    local cpus_allowed_list=($7)
 
-    str=""
-    for element in "${disks[@]}"; do
-        str="${str}$element "
-    done
-    echo "[Config] disks=($str)" >> $output_file
+    echo "[Config] disks=(${disks[@]})" >> $output_file
     echo "[Config] comp_ratio=$comp_ratio" >> $output_file
     echo "[Config] runtime=$runtime" >> $output_file
     echo "[Config] ramp_time=$ramp_time" >> $output_file
-    str=""
-    for element in "${cpus_allowed_list[@]}"; do
-        str="${str}$element "
-    done
-    echo "[Config] cpus_allowed_list=($str)" >> $output_file
+    echo "[Config] cpus_allowed_list=(${cpus_allowed_list[@]})" >> $output_file
     echo "[Config] skip_check=$skip_check" >> $output_file
 }
 
@@ -93,7 +85,12 @@ function collect_fio_result()
     local result_file=$1
     local output_file=$2
     local disk=$3
-    local is_precondition=$4
+    local comp=$4
+    local is_precondition=$5
+
+    if [ ! -s $output_file ];then
+        echo "Disk,Compress_Percentage,IO,BS,QD,Jobs,KIOPS,BandWidth,Unit,Latency,Unit,99% Latency,Unit,99.99% Latency,Unit" >> $output_file
+    fi
 
     pattern=$(sed -n '1p' $result_file | grep -oP 'rw=\K[^,)]+')
     bs=$(sed -n '1p' $result_file | grep -oP '(?<=\(T\) ).*?(?=-)')
@@ -112,15 +109,16 @@ function collect_fio_result()
         lat=$(echo $lat_line_text | grep -oP '(?<=avg=)\d+(?:\.\d+)?(?=,)')
         qos_lat_line_num=$((iops_line_num + 8))
         qos_lat_line_text=$(sed -n "${qos_lat_line_num}p" $result_file) 
-        qos=$(echo $qos_lat_line_text | grep -oP '99\.9900000th=\[\s*\K\d+')
-        qos_unit_line_num=$((iops_line_num + 1))
+        qos_99=$(echo $qos_lat_line_text | grep -oP '99\.0000000th=\[\s*\K\d+')
+        qos_9999=$(echo $qos_lat_line_text | grep -oP '99\.9900000th=\[\s*\K\d+')
+        qos_unit_line_num=$((iops_line_num + 4))
         qos_unit_line_text=$(sed -n "${qos_unit_line_num}p" $result_file) 
         qos_unit=$(echo $qos_unit_line_text | sed 's/.*(\(.*\)):.*/\1/')
 
         if [[ $is_precondition == "precondition" ]];then
             pattern="${is_precondition}_${pattern}"
         fi
-        echo "$disk,$pattern,$bs,$qd,$numjobs,$iops,$bw,$bw_unit,$lat,$unit,$qos,$qos_unit" >> $output_file
+        echo "$disk,$comp,$pattern,$bs,$qd,$numjobs,$iops,$bw,$bw_unit,$lat,$unit,$qos_99,$qos_unit,$qos_9999,$qos_unit" >> $output_file
     else
         # rw/randrw
         iops_line_text=$(cat $result_file | grep -E 'read:')
@@ -134,11 +132,12 @@ function collect_fio_result()
         lat=$(echo $lat_line_text | grep -oP '(?<=avg=)\d+(?:\.\d+)?(?=,)')
         qos_lat_line_num=$((iops_line_num + 8))
         qos_lat_line_text=$(sed -n "${qos_lat_line_num}p" $result_file) 
-        qos=$(echo $qos_lat_line_text | grep -oP '99\.9900000th=\[\s*\K\d+')
-        qos_unit_line_num=$((iops_line_num + 1))
+        qos_99=$(echo $qos_lat_line_text | grep -oP '99\.0000000th=\[\s*\K\d+')
+        qos_9999=$(echo $qos_lat_line_text | grep -oP '99\.9900000th=\[\s*\K\d+')
+        qos_unit_line_num=$((iops_line_num + 4))
         qos_unit_line_text=$(sed -n "${qos_unit_line_num}p" $result_file) 
         qos_unit=$(echo $qos_unit_line_text | sed 's/.*(\(.*\)):.*/\1/')
-        echo "$disk,${pattern}_read,$bs,$qd,$numjobs,$iops,$bw,$bw_unit,$lat,$unit,$qos,$qos_unit" >> $output_file
+        echo "$disk,$comp,${pattern}_read,$bs,$qd,$numjobs,$iops,$bw,$bw_unit,$lat,$unit,$qos_99,$qos_unit,$qos_9999,$qos_unit" >> $output_file
         
         iops_line_text=$(cat $result_file | grep -E 'write:')
         iops_line_num=$(cat $result_file | grep -En 'write:' | cut -d: -f1)
@@ -151,11 +150,12 @@ function collect_fio_result()
         lat=$(echo $lat_line_text | grep -oP '(?<=avg=)\d+(?:\.\d+)?(?=,)')
         qos_lat_line_num=$((iops_line_num + 8))
         qos_lat_line_text=$(sed -n "${qos_lat_line_num}p" $result_file) 
-        qos=$(echo $qos_lat_line_text | grep -oP '99\.9900000th=\[\s*\K\d+')
-        qos_unit_line_num=$((iops_line_num + 1))
+        qos_99=$(echo $qos_lat_line_text | grep -oP '99\.0000000th=\[\s*\K\d+')
+        qos_9999=$(echo $qos_lat_line_text | grep -oP '99\.9900000th=\[\s*\K\d+')
+        qos_unit_line_num=$((iops_line_num + 4))
         qos_unit_line_text=$(sed -n "${qos_unit_line_num}p" $result_file) 
         qos_unit=$(echo $qos_unit_line_text | sed 's/.*(\(.*\)):.*/\1/')
-        echo "$disk,${pattern}_write,$bs,$qd,$numjobs,$iops,$bw,$bw_unit,$lat,$unit,$qos,$qos_unit" >> $output_file
+        echo "$disk,$comp,${pattern}_write,$bs,$qd,$numjobs,$iops,$bw,$bw_unit,$lat,$unit,$qos_99,$qos_unit,$qos_9999,$qos_unit" >> $output_file
     fi
 }
 
@@ -183,7 +183,7 @@ function check_PCIe_status(){
     
     local value_error=0
     maxpayload_result=$(grep "MaxReadReq" <<< "$lspci_output")
-    if ! grep -q "MaxPayload 512 bytes, MaxReadReq 4096 bytes" <<< "$maxpayload_result"; then
+    if ! grep -q "MaxPayload 512 bytes" <<< "$maxpayload_result"; then
         echo "Warning: ${device}(${address}), maxPayload is not 512 bytes, may drop performance. Current: $(grep "MaxPayload" <<< "$maxpayload_result" | sed -e 's/^[[:space:]]*//')"
         value_error=$((value_error+1))
     fi

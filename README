@@ -1,3 +1,5 @@
+2025/10/17 Note: The repository is no longer maintained. See https://github.com/xiaoboluo768/fio-baseline-csd5000 to get more updates for CSD5000 NVMe SSD
+
 To execute the script, please run it in a bash environment using the ./ notation. Additionally, make sure you have installed the fio, iostat, and sfx-tools tools.
 
 Usage: ./fio-spec-test.sh -d "disk1 disk2 ..." -t runtime [-c comp_ratio] [-b "cpus1 cpus2 ..."] [-f] [-o result_name]
@@ -8,3 +10,5 @@ Options:
   -b  CPU binding ranges (space-separated, must match device count)
   -f  Force skip device status check
   -o  Specify the name of output directrory (default to timestamp)
+  -h  Print usage
+
